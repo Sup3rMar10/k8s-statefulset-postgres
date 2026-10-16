@@ -1,0 +1,41 @@
+# Logical backup. Writes to a PVC named postgres-backups that you create separately.
+# A backup that has never been restored is not yet a backup: see README.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+spec:
+  schedule: "30 1 * * *"
+  timeZone: "Etc/UTC"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: dump
+              image: postgres:16.4
+              command: ["sh", "-c", "pg_dump -h postgres -U postgres -Fc app > /backup/app-$(date -u +%F).dump"]
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: postgres-credentials, key: password}
+              resources:
+                requests: {cpu: 100m, memory: 128Mi}
+                limits: {memory: 512Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: backup, mountPath: /backup}
+          volumes:
+            - name: backup
+              persistentVolumeClaim: {claimName: postgres-backups}

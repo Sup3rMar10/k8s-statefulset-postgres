@@ -1,0 +1,9 @@
+# With one replica this blocks voluntary eviction (a node drain waits). Deliberate: data pod.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels: {app: postgres}
